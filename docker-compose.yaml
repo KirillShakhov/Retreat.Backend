@@ -14,6 +14,14 @@ services:
       net:
         aliases:
           - retreat-backend
+  frontend:
+    image: kirillshakhov/retreat-backend:1.0
+    pull_policy: always
+    container_name: frontend
+    networks:
+      - net
+    ports:
+      - '3000:3000'
 
 networks:
   net:
