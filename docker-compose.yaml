@@ -7,6 +7,7 @@ services:
     container_name: retreat-backend
     volumes:
       - "${DOWNLOAD_DIR_PATH:-./downloads}:/app/downloads"
+      - "${DATA_DIR_PATH:-./data}:/app/data"
     ports:
       - '8000:8000'
     networks:

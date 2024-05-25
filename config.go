@@ -20,7 +20,7 @@ func loadConfig() (*Config, error) {
 		Filetypes: []string{".mkv", ".mp4"},
 		Playback:  []string{"mpv", "--no-terminal", "--force-window", "--ytdl-format=best"},
 		Path:      filepath.Join(exPath, "downloads"),
-		file:      filepath.Join(exPath, "config.json"),
+		file:      filepath.Join(exPath, "data/config.json"),
 	}
 
 	err := os.MkdirAll(config.Path, os.ModePerm)
