@@ -88,6 +88,7 @@ func createServer(config *Config) *Server {
 
 func (s *Server) respond(w http.ResponseWriter, res Response, code int) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -288,6 +289,7 @@ func (s *Server) torrents(w http.ResponseWriter, r *http.Request) {
 	torrents := s.getTorrents()
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(torrents); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -309,6 +311,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
 	w.Header().Set("Content-Disposition", "attachment; filename="+fn)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	reader := info.file.NewReader()
 	reader.SetReadahead(info.file.Length() / 100)
