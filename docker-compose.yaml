@@ -1,0 +1,19 @@
+
+services:
+  retreat-backend:
+    build:
+      context: .
+    image: kirillshakhov/retreat-backend:1.0
+    container_name: retreat-backend
+    volumes:
+      - "${DOWNLOAD_DIR_PATH:-./downloads}:/downloads"
+    ports:
+      - '8000:8000'
+    networks:
+      net:
+        aliases:
+          - retreat-backend
+
+networks:
+  net:
+    driver: bridge
