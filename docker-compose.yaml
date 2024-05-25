@@ -6,7 +6,7 @@ services:
     image: kirillshakhov/retreat-backend:1.0
     container_name: retreat-backend
     volumes:
-      - "${DOWNLOAD_DIR_PATH:-./downloads}:/downloads"
+      - "${DOWNLOAD_DIR_PATH:-./downloads}:/app/downloads"
     ports:
       - '8000:8000'
     networks:
