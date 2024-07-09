@@ -26,4 +26,4 @@ jobs:
         with:
           platforms: linux/amd64
           push: true
-          tags: kirillshakhov/retreat-backend:latest
+          tags: kirillshakhov/retreat-backend:${{ github.sha }}
