@@ -75,15 +75,14 @@ func createServer(config *Config) *Server {
 	expect(err, "Failed to create torrent client")
 	server.client = client
 
-	http.HandleFunc("/play", server.play)
-	http.HandleFunc("/download", server.download)
-
-	http.HandleFunc("/torrents", server.torrents)
-	http.HandleFunc("/delete", server.delete)
-	http.HandleFunc("/stream", server.stream)
-	http.HandleFunc("/magnet", server.magnet)
-	http.HandleFunc("/file", server.file)
-	http.HandleFunc("/list", server.list)
+	http.HandleFunc("/api/play", server.play)
+	http.HandleFunc("/api/download", server.download)
+	http.HandleFunc("/api/torrents", server.torrents)
+	http.HandleFunc("/api/delete", server.delete)
+	http.HandleFunc("/api/stream", server.stream)
+	http.HandleFunc("/api/magnet", server.magnet)
+	http.HandleFunc("/api/file", server.file)
+	http.HandleFunc("/api/list", server.list)
 
 	return &server
 }
