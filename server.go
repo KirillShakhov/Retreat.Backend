@@ -41,6 +41,7 @@ type Server struct {
 	client      *torrent.Client
 	torrentInfo map[string]*TorrentInfo
 	config      *Config
+	userStore   *UserStore
 }
 
 type Response struct {
@@ -48,6 +49,7 @@ type Response struct {
 	Ids      []string       `json:"ids,omitempty"`
 	Torrents []*TorrentInfo `json:"torrents,omitempty"`
 	Files    []string       `json:"files,omitempty"`
+	Token    string         `json:"token,omitempty"`
 }
 
 func createServer(config *Config) *Server {
@@ -75,14 +77,27 @@ func createServer(config *Config) *Server {
 	expect(err, "Failed to create torrent client")
 	server.client = client
 
-	http.HandleFunc("/api/play", server.play)
-	http.HandleFunc("/api/download", server.download)
-	http.HandleFunc("/api/torrents", server.torrents)
-	http.HandleFunc("/api/delete", server.delete)
-	http.HandleFunc("/api/stream", server.stream)
-	http.HandleFunc("/api/magnet", server.magnet)
-	http.HandleFunc("/api/file", server.file)
-	http.HandleFunc("/api/list", server.list)
+	// Initialize user store
+	us, err := NewUserStore(config.UsersFile)
+	expect(err, "Failed to initialize user store")
+	server.userStore = us
+
+	// Public auth endpoints
+	http.HandleFunc("/api/register", server.cors(server.register))
+	http.HandleFunc("/api/login", server.cors(server.login))
+	http.HandleFunc("/api/me", server.cors(server.auth(server.me)))
+
+	// Protected endpoints
+	http.HandleFunc("/api/play", server.cors(server.auth(server.play)))
+	http.HandleFunc("/api/download", server.cors(server.auth(server.download)))
+	http.HandleFunc("/api/torrents", server.cors(server.auth(server.torrents)))
+	http.HandleFunc("/api/delete", server.cors(server.auth(server.delete)))
+
+	// Keep stream public to allow external player access without token
+	http.HandleFunc("/api/stream", server.cors(server.stream))
+	http.HandleFunc("/api/magnet", server.cors(server.auth(server.magnet)))
+	http.HandleFunc("/api/file", server.cors(server.auth(server.file)))
+	http.HandleFunc("/api/list", server.cors(server.auth(server.list)))
 
 	return &server
 }
