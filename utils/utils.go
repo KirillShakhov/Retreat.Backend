@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"encoding/json"
@@ -6,13 +6,13 @@ import (
 	"os"
 )
 
-func expect(err error, msg string) {
+func Expect(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
-func loadJSON(file string, v interface{}) error {
+func LoadJSON(file string, v interface{}) error {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return err

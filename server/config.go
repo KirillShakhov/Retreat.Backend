@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"crypto/rand"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"retreat-backend/utils"
 )
 
 type Config struct {
@@ -19,24 +20,24 @@ type Config struct {
 	file          string
 }
 
-func loadConfig() (*Config, error) {
+func LoadConfig() (*Config, error) {
 	config := Config{
 		Port:          8000,
 		Filetypes:     []string{".mkv", ".mp4"},
 		Playback:      []string{"mpv", "--no-terminal", "--force-window", "--ytdl-format=best"},
-		Path:          filepath.Join(exPath, "downloads"),
+		Path:          filepath.Join("downloads"),
 		JWTSecret:     "",
-		UsersFile:     filepath.Join(exPath, "data/users.json"),
+		UsersFile:     filepath.Join("data/users.json"),
 		TokenTTLHours: 24,
-		file:          filepath.Join(exPath, "data/config.json"),
+		file:          filepath.Join("data/config.json"),
 	}
 
 	err := os.MkdirAll(config.Path, os.ModePerm)
-	expect(err, "Failed to create downloads directory")
+	utils.Expect(err, "Failed to create downloads directory")
 
 	_ = os.MkdirAll(filepath.Dir(config.file), os.ModePerm)
 
-	err = loadJSON(config.file, &config)
+	err = utils.LoadJSON(config.file, &config)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if config.JWTSecret == "" {

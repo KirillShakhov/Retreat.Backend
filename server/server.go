@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -10,54 +10,52 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
+
+	"retreat-backend/torrentClient"
+	"retreat-backend/utils"
 
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/storage"
 )
 
-type TorrentInfo struct {
-	Id       string    `json:"id"`
-	Name     string    `json:"name"`
-	Progress int       `json:"progress"`
-	Download bool      `json:"download"`
-	Time     time.Time `json:"time"`
-	file     *torrent.File
-}
-
 type Server struct {
-	mu          sync.Mutex
-	srv         *http.Server
-	url         string
-	stopChan    chan os.Signal
-	client      *torrent.Client
-	torrentInfo map[string]*TorrentInfo
-	config      *Config
-	userStore   *UserStore
+	mu            sync.Mutex
+	srv           *http.Server
+	url           string
+	stopChan      chan os.Signal
+	client        *torrent.Client
+	config        *Config
+	userStore     *UserStore
+	torrentClient *torrentClient.TorrentClient
 }
 
 type Response struct {
-	Message  string         `json:"message,omitempty"`
-	Ids      []string       `json:"ids,omitempty"`
-	Torrents []*TorrentInfo `json:"torrents,omitempty"`
-	Files    []string       `json:"files,omitempty"`
-	Token    string         `json:"token,omitempty"`
+	Message  string   `json:"message,omitempty"`
+	Ids      []string `json:"ids,omitempty"`
+	Torrents []string `json:"torrents,omitempty"`
+	Files    []string `json:"files,omitempty"`
+	Token    string   `json:"token,omitempty"`
 }
 
-func createServer(config *Config) *Server {
+func CreateServer(config *Config) *Server {
 	port := config.Port
+
+	tc := &torrentClient.TorrentClient{
+		Filetypes: []string{".mp4", ".avi", ".mkv", ".mov"},
+	}
+
 	server := Server{
-		srv:         &http.Server{Addr: ":" + fmt.Sprint(port)},
-		stopChan:    make(chan os.Signal, 1),
-		torrentInfo: make(map[string]*TorrentInfo),
-		config:      config,
+		srv:           &http.Server{Addr: ":" + fmt.Sprint(port)},
+		stopChan:      make(chan os.Signal, 1),
+		config:        config,
+		torrentClient: tc,
 	}
 
 	signal.Notify(server.stopChan, os.Interrupt, syscall.SIGTERM)
 
 	os.RemoveAll(config.Path)
 	err := os.MkdirAll(config.Path, os.ModePerm)
-	expect(err, "Failed to create downloads directory")
+	utils.Expect(err, "Failed to create downloads directory")
 
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DefaultStorage = storage.NewFileByInfoHash(config.Path)
@@ -66,12 +64,12 @@ func createServer(config *Config) *Server {
 	cfg.HalfOpenConnsPerTorrent = 30
 
 	client, err := torrent.NewClient(cfg)
-	expect(err, "Failed to create torrent client")
+	utils.Expect(err, "Failed to create torrent client")
 	server.client = client
 
 	// Initialize user store
 	us, err := NewUserStore(config.UsersFile)
-	expect(err, "Failed to initialize user store")
+	utils.Expect(err, "Failed to initialize user store")
 	server.userStore = us
 
 	// Public auth endpoints
@@ -94,7 +92,7 @@ func createServer(config *Config) *Server {
 	return &server
 }
 
-func (s *Server) respond(w http.ResponseWriter, res Response, code int) {
+func (server *Server) respond(w http.ResponseWriter, res Response, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(code)
@@ -104,8 +102,8 @@ func (s *Server) respond(w http.ResponseWriter, res Response, code int) {
 	log.Printf("%s: %s", http.StatusText(code), res.Message)
 }
 
-func (s *Server) start() (int, error) {
-	listener, err := net.Listen("tcp", s.srv.Addr)
+func (server *Server) start() (int, error) {
+	listener, err := net.Listen("tcp", server.srv.Addr)
 	if err != nil {
 		return 0, err
 	}
@@ -121,11 +119,9 @@ func (s *Server) start() (int, error) {
 	return port, nil
 }
 
-func serve(config *Config) {
-	server = createServer(config)
-
+func (server *Server) Serve(config *Config) {
 	port, err := server.start()
-	expect(err, "Failed to start server")
+	utils.Expect(err, "Failed to start server")
 
 	url := fmt.Sprintf("http://localhost:%d", port)
 	log.Printf("Server running at %s/\n", url)
@@ -134,7 +130,7 @@ func serve(config *Config) {
 
 	<-server.stopChan
 
-	expect(server.srv.Close(), "Error closing server")
+	utils.Expect(server.srv.Close(), "Error closing server")
 	server.client.Close()
 
 	err = os.RemoveAll(config.Path)

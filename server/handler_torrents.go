@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -6,8 +6,8 @@ import (
 	"net/http"
 )
 
-func (s *Server) torrents(w http.ResponseWriter, r *http.Request) {
-	torrents := s.getTorrents()
+func (server *Server) torrents(w http.ResponseWriter, r *http.Request) {
+	torrents := server.torrentClient.GetTorrents()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"log"
@@ -8,10 +8,10 @@ import (
 	"github.com/anacrolix/torrent"
 )
 
-func (s *Server) magnet(w http.ResponseWriter, r *http.Request) {
+func (server *Server) magnet(w http.ResponseWriter, r *http.Request) {
 	uri := r.URL.Query().Get("uri")
 	if uri == "" {
-		s.respond(w, Response{Message: "Missing URI"}, http.StatusBadRequest)
+		server.respond(w, Response{Message: "Missing URI"}, http.StatusBadRequest)
 		return
 	}
 
@@ -19,13 +19,13 @@ func (s *Server) magnet(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch {
 	case strings.HasPrefix(uri, "magnet:"):
-		t, err = s.client.AddMagnet(uri)
+		t, err = server.client.AddMagnet(uri)
 	default:
-		s.respond(w, Response{Message: "Unsupported URI format"}, http.StatusBadRequest)
+		server.respond(w, Response{Message: "Unsupported URI format"}, http.StatusBadRequest)
 		return
 	}
 	if err != nil {
-		s.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
+		server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 		return
 	}
 
@@ -36,10 +36,10 @@ func (s *Server) magnet(w http.ResponseWriter, r *http.Request) {
 	ids := make([]string, 0)
 	anyValid := false
 	for _, f := range t.Files() {
-		if s.isValidFile(f) {
-			info, exists := s.getTorrent(s.getId(f))
+		if server.torrentClient.IsValidFile(f) {
+			info, exists := server.torrentClient.GetTorrent(server.torrentClient.GetId(f))
 			if !exists {
-				info = s.addTorrent(f)
+				info = server.torrentClient.AddTorrent(f)
 			}
 			ids = append(ids, info.Id)
 			anyValid = true
@@ -52,9 +52,9 @@ func (s *Server) magnet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if anyValid {
-		s.respond(w, Response{Message: "Files added", Ids: ids}, http.StatusOK)
+		server.respond(w, Response{Message: "Files added", Ids: ids}, http.StatusOK)
 	} else {
 		t.Drop()
-		s.respond(w, Response{Message: "No valid files"}, http.StatusBadRequest)
+		server.respond(w, Response{Message: "No valid files"}, http.StatusBadRequest)
 	}
 }
