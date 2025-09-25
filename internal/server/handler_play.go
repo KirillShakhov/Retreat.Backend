@@ -8,7 +8,7 @@ import (
 func (server *Server) play(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	_, ok := server.torrentClient.GetTorrent(id)
+	_, ok := server.torrentManager.GetTorrent(id)
 	if !ok {
 		server.respond(w, Response{Message: "File not found"}, http.StatusNotFound)
 		return

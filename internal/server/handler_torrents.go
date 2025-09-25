@@ -7,7 +7,7 @@ import (
 )
 
 func (server *Server) torrents(w http.ResponseWriter, r *http.Request) {
-	torrents := server.torrentClient.GetTorrents()
+	torrents := server.torrentManager.GetTorrents()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")

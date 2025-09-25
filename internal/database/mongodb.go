@@ -1,4 +1,4 @@
-package server
+package database
 
 import (
 	"context"
@@ -11,19 +11,27 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
+type MongoConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Database string `json:"database"`
+}
+
 type MongoDB struct {
 	client   *mongo.Client
 	database *mongo.Database
 }
 
-func NewMongoDB(config *Config) (*MongoDB, error) {
+func NewMongoDB(config *MongoConfig) (*MongoDB, error) {
 	// Создаем строку подключения
 	uri := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
-		config.MongoConfig.User,
-		config.MongoConfig.Password,
-		config.MongoConfig.Host,
-		config.MongoConfig.Port,
-		config.MongoConfig.Database)
+		config.User,
+		config.Password,
+		config.Host,
+		config.Port,
+		config.Database)
 
 	// Настройки подключения
 	clientOptions := options.Client().ApplyURI(uri)
@@ -43,9 +51,9 @@ func NewMongoDB(config *Config) (*MongoDB, error) {
 		return nil, fmt.Errorf("failed to ping MongoDB: %v", err)
 	}
 
-	database := client.Database(config.MongoConfig.Database)
+	database := client.Database(config.Database)
 
-	log.Printf("Successfully connected to MongoDB at %s:%d", config.MongoConfig.Host, config.MongoConfig.Port)
+	log.Printf("Successfully connected to MongoDB at %s:%d", config.Host, config.Port)
 
 	return &MongoDB{
 		client:   client,

@@ -1,27 +1,27 @@
 package server
 
 import (
-	"github.com/anacrolix/torrent"
 	"io/ioutil"
-	"log"
 	"net/http"
 )
 
 func (server *Server) list(w http.ResponseWriter, r *http.Request) {
-	var t *torrent.Torrent
-	var err error
+	var files []string
 
 	uri := r.URL.Query().Get("uri")
 	file, _, _ := r.FormFile("file")
 
 	if uri != "" {
-		t, err = server.client.AddMagnet(uri)
+		files, err := server.torrentManager.AddMagnet(uri)
 		if err != nil {
 			server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 			return
 		}
+
+		server.respond(w, Response{Files: files}, http.StatusOK)
+		return
 	} else if file != nil {
-		tempFile, err := ioutil.TempFile(server.config.Path, "upload-*.torrent")
+		tempFile, err := ioutil.TempFile(server.config.DownloadPath, "upload-*.torrent")
 		if err != nil {
 			server.respond(w, Response{Message: "Failed to create temp file"}, http.StatusInternalServerError)
 			return
@@ -39,24 +39,16 @@ func (server *Server) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		t, err = server.client.AddTorrentFromFile(tempFile.Name())
+		files, err = server.torrentManager.AddTorrentFromFile(tempFile, tempFile.Name())
 		if err != nil {
 			server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 			return
 		}
+
+		server.respond(w, Response{Files: files}, http.StatusOK)
+		return
 	} else {
 		server.respond(w, Response{Message: "No URI or file provided"}, http.StatusBadRequest)
 		return
 	}
-
-	log.Printf("Loading torrent info...")
-
-	<-t.GotInfo()
-
-	files := make([]string, 0)
-	for _, f := range t.Files() {
-		files = append(files, f.DisplayPath())
-	}
-
-	server.respond(w, Response{Files: files}, http.StatusOK)
 }

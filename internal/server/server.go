@@ -8,26 +8,23 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"retreat-backend/internal/database"
 	"sync"
 	"syscall"
 
-	"retreat-backend/torrentClient"
-	"retreat-backend/utils"
-
-	"github.com/anacrolix/torrent"
-	"github.com/anacrolix/torrent/storage"
+	"retreat-backend/internal/torrent"
+	"retreat-backend/internal/utils"
 )
 
 type Server struct {
-	mu            sync.Mutex
-	srv           *http.Server
-	url           string
-	stopChan      chan os.Signal
-	client        *torrent.Client
-	config        *Config
-	userStore     *UserStore
-	torrentClient *torrentClient.TorrentClient
-	mongodb       *MongoDB
+	mu             sync.Mutex
+	srv            *http.Server
+	url            string
+	stopChan       chan os.Signal
+	config         *Config
+	userStore      *database.UserStore
+	torrentManager *torrent.TorrentManager
+	mongodb        *database.MongoDB
 }
 
 type Response struct {
@@ -41,39 +38,25 @@ type Response struct {
 func CreateServer(config *Config) *Server {
 	port := config.Port
 
-	tc := &torrentClient.TorrentClient{
-		Filetypes: []string{".mp4", ".avi", ".mkv", ".mov"},
-	}
-
 	server := Server{
-		srv:           &http.Server{Addr: ":" + fmt.Sprint(port)},
-		stopChan:      make(chan os.Signal, 1),
-		config:        config,
-		torrentClient: tc,
+		srv:            &http.Server{Addr: ":" + fmt.Sprint(port)},
+		stopChan:       make(chan os.Signal, 1),
+		config:         config,
+		torrentManager: torrent.NewTorrentManager(config.Filetypes, config.DownloadPath),
 	}
 
 	signal.Notify(server.stopChan, os.Interrupt, syscall.SIGTERM)
 
-	os.RemoveAll(config.Path)
-	err := os.MkdirAll(config.Path, os.ModePerm)
+	os.RemoveAll(config.DownloadPath)
+	err := os.MkdirAll(config.DownloadPath, os.ModePerm)
 	utils.Expect(err, "Failed to create downloads directory")
 
-	cfg := torrent.NewDefaultClientConfig()
-	cfg.DefaultStorage = storage.NewFileByInfoHash(config.Path)
-
-	cfg.EstablishedConnsPerTorrent = 55
-	cfg.HalfOpenConnsPerTorrent = 30
-
-	client, err := torrent.NewClient(cfg)
-	utils.Expect(err, "Failed to create torrent client")
-	server.client = client
-
-	mongodb, err := NewMongoDB(config)
+	mongodb, err := database.NewMongoDB(config.mongoConfig)
 	utils.Expect(err, "Failed to connect to MongoDB")
 	server.mongodb = mongodb
 
 	// Initialize user store
-	us := NewUserStore(mongodb)
+	us := database.NewUserStore(mongodb)
 	server.userStore = us
 
 	// Public auth endpoints
@@ -82,16 +65,16 @@ func CreateServer(config *Config) *Server {
 	http.HandleFunc("/api/me", server.cors(server.auth(server.me)))
 
 	// Protected endpoints
-	http.HandleFunc("/api/play", server.cors(server.auth(server.play)))
-	http.HandleFunc("/api/download", server.cors(server.auth(server.download)))
-	http.HandleFunc("/api/torrents", server.cors(server.auth(server.torrents)))
-	http.HandleFunc("/api/delete", server.cors(server.auth(server.delete)))
+	http.HandleFunc("/api/play", server.cors(server.play))
+	http.HandleFunc("/api/download", server.cors(server.download))
+	http.HandleFunc("/api/torrents", server.cors(server.torrents))
+	http.HandleFunc("/api/delete", server.cors(server.delete))
 
 	// Keep stream public to allow external player access without token
 	http.HandleFunc("/api/stream", server.cors(server.stream))
-	http.HandleFunc("/api/magnet", server.cors(server.auth(server.magnet)))
-	http.HandleFunc("/api/file", server.cors(server.auth(server.file)))
-	http.HandleFunc("/api/list", server.cors(server.auth(server.list)))
+	http.HandleFunc("/api/magnet", server.cors(server.magnet))
+	http.HandleFunc("/api/file", server.cors(server.file))
+	http.HandleFunc("/api/list", server.cors(server.list))
 
 	return &server
 }
@@ -135,17 +118,17 @@ func (server *Server) Serve(config *Config) {
 	<-server.stopChan
 
 	utils.Expect(server.srv.Close(), "Error closing server")
-	server.client.Close()
+	server.torrentManager.Close()
 
 	if err := server.mongodb.Close(); err != nil {
 		log.Printf("Error closing MongoDB connection: %v", err)
 	}
 
-	err = os.RemoveAll(config.Path)
+	err = os.RemoveAll(config.DownloadPath)
 	if err != nil {
 		return
 	}
-	err = os.MkdirAll(config.Path, os.ModePerm)
+	err = os.MkdirAll(config.DownloadPath, os.ModePerm)
 	if err != nil {
 		return
 	}

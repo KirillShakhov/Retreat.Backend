@@ -6,26 +6,19 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"retreat-backend/utils"
+	"retreat-backend/internal/database"
+	"retreat-backend/internal/utils"
 )
 
-type MongoConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Database string `json:"database"`
-}
-
 type Config struct {
-	Port          int         `json:"port"`
-	Filetypes     []string    `json:"filetypes"`
-	Playback      []string    `json:"playback"`
-	Path          string      `json:"path"`
-	JWTSecret     string      `json:"jwt_secret"`
-	UsersFile     string      `json:"users_file"`
-	TokenTTLHours int         `json:"token_ttl_hours"`
-	MongoConfig   MongoConfig `json:"mongoConfig"`
+	Port          int                   `json:"port"`
+	Filetypes     []string              `json:"filetypes"`
+	Playback      []string              `json:"playback"`
+	DownloadPath  string                `json:"downloadpath"`
+	JWTSecret     string                `json:"jwt_secret"`
+	UsersFile     string                `json:"users_file"`
+	TokenTTLHours int                   `json:"token_ttl_hours"`
+	mongoConfig   *database.MongoConfig `json:"mongoConfig"`
 	file          string
 }
 
@@ -34,12 +27,12 @@ func LoadConfig() (*Config, error) {
 		Port:          8000,
 		Filetypes:     []string{".mkv", ".mp4"},
 		Playback:      []string{"mpv", "--no-terminal", "--force-window", "--ytdl-format=best"},
-		Path:          filepath.Join("downloads"),
-		JWTSecret:     "",
+		DownloadPath:  filepath.Join("downloads"),
+		JWTSecret:     "SecretKey",
 		UsersFile:     filepath.Join("data/users.json"),
 		TokenTTLHours: 24,
 		file:          filepath.Join("data/config.json"),
-		MongoConfig: MongoConfig{
+		mongoConfig: &database.MongoConfig{
 			Host:     "localhost",
 			Port:     27017,
 			User:     "testadmin",
@@ -48,7 +41,7 @@ func LoadConfig() (*Config, error) {
 		},
 	}
 
-	err := os.MkdirAll(config.Path, os.ModePerm)
+	err := os.MkdirAll(config.DownloadPath, os.ModePerm)
 	utils.Expect(err, "Failed to create downloads directory")
 
 	_ = os.MkdirAll(filepath.Dir(config.file), os.ModePerm)

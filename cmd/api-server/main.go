@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	serverMain "retreat-backend/server"
-	"retreat-backend/utils"
+	serverMain "retreat-backend/internal/server"
+	"retreat-backend/internal/utils"
 )
 
 var (

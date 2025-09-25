@@ -1,14 +1,15 @@
 package server
 
 import (
-	"github.com/anacrolix/torrent"
 	"net/http"
+
+	"github.com/anacrolix/torrent"
 )
 
 func (server *Server) download(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	info, ok := server.torrentClient.GetTorrent(id)
+	info, ok := server.torrentManager.GetTorrent(id)
 	if !ok {
 		server.respond(w, Response{Message: "File not found"}, http.StatusNotFound)
 		return
