@@ -5,98 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 )
-
-type User struct {
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
-type UserStore struct {
-	file  string
-	users map[string]User // key: lowercase email
-}
-
-func NewUserStore(file string) (*UserStore, error) {
-	us := &UserStore{
-		file:  file,
-		users: make(map[string]User),
-	}
-	if err := os.MkdirAll(filepath.Dir(file), os.ModePerm); err != nil {
-		return nil, err
-	}
-	// Load if exists
-	data, err := os.ReadFile(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return us, us.save()
-		}
-		return nil, err
-	}
-	var list []User
-	if len(data) != 0 {
-		if err := json.Unmarshal(data, &list); err != nil {
-			return nil, err
-		}
-		for _, u := range list {
-			us.users[strings.ToLower(u.Email)] = u
-		}
-	}
-	return us, nil
-}
-
-func (us *UserStore) save() error {
-	list := make([]User, 0, len(us.users))
-	for _, u := range us.users {
-		list = append(list, u)
-	}
-	data, err := json.MarshalIndent(list, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(us.file, data, 0644)
-}
-
-func (us *UserStore) CreateUser(email, password string) error {
-	key := strings.ToLower(strings.TrimSpace(email))
-	if key == "" || password == "" {
-		return errors.New("empty email or password")
-	}
-	if _, exists := us.users[key]; exists {
-		return errors.New("user already exists")
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	us.users[key] = User{
-		Email:        email,
-		PasswordHash: string(hash),
-		CreatedAt:    time.Now(),
-	}
-	return us.save()
-}
-
-func (us *UserStore) VerifyUser(email, password string) error {
-	key := strings.ToLower(strings.TrimSpace(email))
-	u, ok := us.users[key]
-	if !ok {
-		return errors.New("invalid credentials")
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
-		return errors.New("invalid credentials")
-	}
-	return nil
-}
 
 // JWT utilities
 func (server *Server) generateJWT(email string) (string, error) {

@@ -9,14 +9,23 @@ import (
 	"retreat-backend/utils"
 )
 
+type MongoConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Database string `json:"database"`
+}
+
 type Config struct {
-	Port          int      `json:"port"`
-	Filetypes     []string `json:"filetypes"`
-	Playback      []string `json:"playback"`
-	Path          string   `json:"path"`
-	JWTSecret     string   `json:"jwt_secret"`
-	UsersFile     string   `json:"users_file"`
-	TokenTTLHours int      `json:"token_ttl_hours"`
+	Port          int         `json:"port"`
+	Filetypes     []string    `json:"filetypes"`
+	Playback      []string    `json:"playback"`
+	Path          string      `json:"path"`
+	JWTSecret     string      `json:"jwt_secret"`
+	UsersFile     string      `json:"users_file"`
+	TokenTTLHours int         `json:"token_ttl_hours"`
+	MongoConfig   MongoConfig `json:"mongoConfig"`
 	file          string
 }
 
@@ -30,6 +39,13 @@ func LoadConfig() (*Config, error) {
 		UsersFile:     filepath.Join("data/users.json"),
 		TokenTTLHours: 24,
 		file:          filepath.Join("data/config.json"),
+		MongoConfig: MongoConfig{
+			Host:     "localhost",
+			Port:     27017,
+			User:     "testadmin",
+			Password: "testadmin",
+			Database: "retreat",
+		},
 	}
 
 	err := os.MkdirAll(config.Path, os.ModePerm)

@@ -27,6 +27,7 @@ type Server struct {
 	config        *Config
 	userStore     *UserStore
 	torrentClient *torrentClient.TorrentClient
+	mongodb       *MongoDB
 }
 
 type Response struct {
@@ -67,9 +68,12 @@ func CreateServer(config *Config) *Server {
 	utils.Expect(err, "Failed to create torrent client")
 	server.client = client
 
+	mongodb, err := NewMongoDB(config)
+	utils.Expect(err, "Failed to connect to MongoDB")
+	server.mongodb = mongodb
+
 	// Initialize user store
-	us, err := NewUserStore(config.UsersFile)
-	utils.Expect(err, "Failed to initialize user store")
+	us := NewUserStore(mongodb)
 	server.userStore = us
 
 	// Public auth endpoints
@@ -132,6 +136,10 @@ func (server *Server) Serve(config *Config) {
 
 	utils.Expect(server.srv.Close(), "Error closing server")
 	server.client.Close()
+
+	if err := server.mongodb.Close(); err != nil {
+		log.Printf("Error closing MongoDB connection: %v", err)
+	}
 
 	err = os.RemoveAll(config.Path)
 	if err != nil {

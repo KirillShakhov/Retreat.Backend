@@ -21,7 +21,28 @@ services:
       - net
     ports:
       - '3000:3000'
+  mongodb:
+    image: public.ecr.aws/docker/library/mongo:8.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: testadmin
+      MONGO_INITDB_ROOT_PASSWORD: testadmin
+      MONGO_INITDB_DATABASE: retreat
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - net
+    ports:
+      - '27017:27017'
 
 networks:
   net:
     driver: bridge
+
+volumes:
+  mongodb_data:
