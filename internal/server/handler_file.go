@@ -24,11 +24,11 @@ func (server *Server) file(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Используем менеджер торрентов для обработки файла
-	ids, err := server.torrentManager.AddTorrentFromFile(file, handler.Filename)
+	_, err = server.torrentManager.AddTorrentFromFile(file, handler.Filename)
 	if err != nil {
 		server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	server.respond(w, Response{Message: "Files added", Ids: ids}, http.StatusOK)
+	server.respond(w, Response{Message: "Files added"}, http.StatusOK)
 }

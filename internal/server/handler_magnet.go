@@ -13,11 +13,11 @@ func (server *Server) magnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var files []string
+	var isValid bool
 	var err error
 	switch {
 	case strings.HasPrefix(uri, "magnet:"):
-		files, err = server.torrentManager.AddMagnet(uri)
+		isValid, err = server.torrentManager.AddMagnet(uri)
 	default:
 		server.respond(w, Response{Message: "Unsupported URI format"}, http.StatusBadRequest)
 		return
@@ -29,8 +29,8 @@ func (server *Server) magnet(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Loading torrent info...")
 
-	if len(files) > 0 {
-		server.respond(w, Response{Message: "Files added", Ids: files}, http.StatusOK)
+	if isValid {
+		server.respond(w, Response{Message: "Files added"}, http.StatusOK)
 	} else {
 		server.respond(w, Response{Message: "No valid files"}, http.StatusBadRequest)
 	}

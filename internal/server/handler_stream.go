@@ -2,28 +2,15 @@ package server
 
 import (
 	"net/http"
-	"time"
 )
 
 func (server *Server) stream(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+	fileId := r.URL.Query().Get("fileId")
 
-	info, ok := server.torrentManager.GetTorrent(id)
+	info, ok := server.torrentManager.Stream(w, r, id, fileId)
 	if !ok {
-		server.respond(w, Response{Message: "File not found"}, http.StatusNotFound)
+		server.respond(w, Response{Message: info}, http.StatusNotFound)
 		return
 	}
-
-	fn := info.File.DisplayPath()
-
-	w.Header().Set("Expires", "0")
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
-	w.Header().Set("Content-Disposition", "attachment; filename="+fn)
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	reader := info.File.NewReader()
-	reader.SetReadahead(info.File.Length() / 100)
-	reader.SetResponsive()
-
-	http.ServeContent(w, r, fn, time.Now(), reader)
 }

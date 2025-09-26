@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,27 +16,30 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 )
 
 // TorrentManager управляет загрузкой и обработкой торрент-файлов
 type TorrentManager struct {
 	mu           sync.Mutex
-	torrentInfo  map[string]*TorrentInfo
 	filetypes    []string
 	client       *torrent.Client
 	downloadPath string
 }
 
+type FileInfo struct {
+	Id       string `json:"id"`
+	Name     string `json:"name"`
+	Progress int    `json:"progress"`
+}
+
 // TorrentInfo содержит информацию о загружаемом файле
 type TorrentInfo struct {
-	Id       string    `json:"id"`
-	Name     string    `json:"name"`
-	Progress int       `json:"progress"`
-	Download bool      `json:"download"`
-	Time     time.Time `json:"time"`
-	File     *torrent.File
-	Torrent  *torrent.Torrent
+	Id    string      `json:"id"`
+	Name  string      `json:"name"`
+	Time  time.Time   `json:"time"`
+	Files []*FileInfo `json:"files"`
 }
 
 // NewTorrentManager создает новый менеджер торрентов
@@ -51,7 +55,6 @@ func NewTorrentManager(filetypes []string, downloadPath string) *TorrentManager 
 	}
 
 	return &TorrentManager{
-		torrentInfo:  make(map[string]*TorrentInfo),
 		filetypes:    filetypes,
 		client:       client,
 		downloadPath: downloadPath,
@@ -59,7 +62,7 @@ func NewTorrentManager(filetypes []string, downloadPath string) *TorrentManager 
 }
 
 // AddTorrentFromFile добавляет торрент из файла
-func (tm *TorrentManager) AddTorrentFromFile(torrentFile io.Reader, filename string) ([]string, error) {
+func (tm *TorrentManager) AddTorrentFromFile(torrentFile io.Reader, filename string) (*TorrentInfo, error) {
 	// Создаем временный файл для торрента
 	tempFile, err := os.CreateTemp(tm.downloadPath, "upload-*.torrent")
 	if err != nil {
@@ -85,43 +88,28 @@ func (tm *TorrentManager) AddTorrentFromFile(torrentFile io.Reader, filename str
 	<-t.GotInfo()
 
 	// Обрабатываем файлы торрента
-	ids, err := tm.processTorrentFiles(t)
+	_, err = tm.processTorrentFiles(t)
 	if err != nil {
 		t.Drop()
 		return nil, err
 	}
 
-	return ids, nil
+	torrentInfo := convertTorrent(t)
+
+	return torrentInfo, nil
 }
 
 // processTorrentFiles обрабатывает файлы в добавленном торренте
-func (tm *TorrentManager) processTorrentFiles(t *torrent.Torrent) ([]string, error) {
+func (tm *TorrentManager) processTorrentFiles(t *torrent.Torrent) (bool, error) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	ids := make([]string, 0)
 	anyValid := false
-
 	for _, f := range t.Files() {
 		if !tm.isValidFile(f) {
 			continue
 		}
 
-		id := tm.generateFileID(f)
-		info, exists := tm.torrentInfo[id]
-
-		if !exists {
-			info = &TorrentInfo{
-				Id:      id,
-				Name:    f.DisplayPath(),
-				Time:    time.Now(),
-				File:    f,
-				Torrent: t,
-			}
-			tm.torrentInfo[id] = info
-		}
-
-		ids = append(ids, info.Id)
 		anyValid = true
 
 		// Устанавливаем приоритеты для быстрого старта потоковой передачи
@@ -129,14 +117,14 @@ func (tm *TorrentManager) processTorrentFiles(t *torrent.Torrent) ([]string, err
 	}
 
 	if !anyValid {
-		return nil, fmt.Errorf("no valid files in torrent %s", t.Name())
+		return false, fmt.Errorf("no valid files in torrent %s", t.Name())
 	}
 
-	return ids, nil
+	return true, nil
 }
 
 // generateFileID генерирует уникальный ID для файла
-func (tm *TorrentManager) generateFileID(f *torrent.File) string {
+func generateFileID(f *torrent.File) string {
 	id := f.Torrent().InfoHash().String() + f.DisplayPath()
 	return fmt.Sprintf("%x", md5.Sum([]byte(id)))
 }
@@ -160,15 +148,48 @@ func (tm *TorrentManager) isValidFile(f *torrent.File) bool {
 
 // GetTorrent возвращает информацию о торренте по ID
 func (tm *TorrentManager) GetTorrent(id string) (*TorrentInfo, bool) {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
-	info, exists := tm.torrentInfo[id]
-	if exists {
-		// Обновляем прогресс
-		info.Progress = tm.calculateProgress(info)
+	var hash metainfo.Hash
+	err := hash.FromHexString(id)
+	if err != nil {
+		return nil, false
 	}
-	return info, exists
+
+	t, ok := tm.client.Torrent(hash)
+	return convertTorrent(t), ok
+}
+
+func (tm *TorrentManager) Stream(w http.ResponseWriter, r *http.Request, id string, fileId string) (string, bool) {
+	var hash metainfo.Hash
+	err := hash.FromHexString(id)
+	if err != nil {
+		return "hash is not valid", false
+	}
+
+	t, ok := tm.client.Torrent(hash)
+	if !ok {
+		return "file not found", false
+	}
+
+	for _, file := range t.Files() {
+		if generateFileID(file) == fileId {
+			fn := file.DisplayPath()
+
+			w.Header().Set("Expires", "0")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+			w.Header().Set("Content-Disposition", "attachment; filename="+fn)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+
+			reader := file.NewReader()
+			reader.SetReadahead(file.Length() / 100)
+			reader.SetResponsive()
+
+			http.ServeContent(w, r, fn, time.Now(), reader)
+
+			return "fie found", true
+		}
+	}
+
+	return "file not found", false
 }
 
 // GetTorrents возвращает список всех торрентов
@@ -176,11 +197,7 @@ func (tm *TorrentManager) GetTorrents() []*TorrentInfo {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	torrents := make([]*TorrentInfo, 0, len(tm.torrentInfo))
-	for _, info := range tm.torrentInfo {
-		info.Progress = tm.calculateProgress(info)
-		torrents = append(torrents, info)
-	}
+	torrents := convertTorrentList(tm.client.Torrents())
 
 	// Сортируем по времени добавления (новые сначала)
 	sort.Slice(torrents, func(i, j int) bool {
@@ -191,50 +208,64 @@ func (tm *TorrentManager) GetTorrents() []*TorrentInfo {
 }
 
 // calculateProgress вычисляет прогресс загрузки файла
-func (tm *TorrentManager) calculateProgress(info *TorrentInfo) int {
-	if info.File == nil || info.File.Length() == 0 {
+func calculateProgress(file *torrent.File) int {
+	if file == nil || file.Length() == 0 {
 		return 0
 	}
-	return int(info.File.BytesCompleted() * 100 / info.File.Length())
+	return int(file.BytesCompleted() * 100 / file.Length())
 }
 
 func (tm *TorrentManager) RemoveTorrent(id string) (bool, string) {
-	info, ok := tm.GetTorrent(id)
-	if !ok {
-		return true, "Torrent not found"
-	}
-
-	ih := info.File.Torrent().InfoHash().String()
-	rel := info.File.Path()
-
-	filePath := filepath.Join(tm.downloadPath, ih, rel)
-
-	info.File.SetPriority(torrent.PiecePriorityNone)
-
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	delete(tm.torrentInfo, id)
 
-	err := os.Remove(filePath)
+	var hash metainfo.Hash
+	err := hash.FromHexString(id)
 	if err != nil {
-		return false, "Error removing file"
+		return false, "hash is not valid"
 	}
 
-	return true, "File removed"
+	t, ok := tm.client.Torrent(hash)
+	if !ok {
+		return true, "torrent not found"
+	}
+
+	for _, file := range t.Files() {
+		file.SetPriority(torrent.PiecePriorityNone)
+
+		ih := file.Torrent().InfoHash().String()
+		rel := file.Path()
+		filePath := filepath.Join(tm.downloadPath, ih, rel)
+
+		_ = os.Remove(filePath)
+	}
+
+	return true, "torrent removed"
 }
 
 // GetFilepath возвращает путь к загруженному файлу
-func (tm *TorrentManager) GetFilepath(id string) (string, error) {
-	info, exists := tm.GetTorrent(id)
-	if !exists || info.File == nil {
+func (tm *TorrentManager) GetFilepath(id string, fileId string) (string, error) {
+	var hash metainfo.Hash
+	err := hash.FromHexString(id)
+	if err != nil {
+		return "", fmt.Errorf("hash is not valid: %s", id)
+	}
+
+	t, exists := tm.client.Torrent(hash)
+	if !exists {
 		return "", fmt.Errorf("torrent not found: %s", id)
 	}
 
-	// В anacrolix/torrent файлы сохраняются в поддиректориях по infoHash
-	torrentPath := filepath.Join(tm.downloadPath, info.Torrent.InfoHash().String())
-	filename := filepath.Base(info.File.Path())
+	for _, file := range t.Files() {
+		if generateFileID(file) == fileId {
+			torrentPath := filepath.Join(tm.downloadPath, t.InfoHash().String())
+			filename := filepath.Base(file.Path())
 
-	return filepath.Join(torrentPath, filename), nil
+			return filepath.Join(torrentPath, filename), nil
+		}
+	}
+
+	return "", fmt.Errorf("file not found: %s", fileId)
 }
 
 // Close закрывает торрент-клиент
@@ -244,25 +275,20 @@ func (tm *TorrentManager) Close() {
 	}
 }
 
-func (tm *TorrentManager) AddMagnet(uri string) ([]string, error) {
+func (tm *TorrentManager) AddMagnet(uri string) (bool, error) {
 	t, err := tm.client.AddMagnet(uri)
 	if err != nil {
-		return make([]string, 0), err
+		return false, err
 	}
 
 	<-t.GotInfo()
 
-	ids, err := tm.processTorrentFiles(t)
+	isValid, err := tm.processTorrentFiles(t)
 	if err != nil {
 		t.Drop()
-		return nil, err
 	}
 
-	if len(ids) <= 0 {
-		t.Drop()
-	}
-
-	return ids, nil
+	return isValid, err
 }
 
 func (tm *TorrentManager) getId(f *torrent.File) string {
@@ -270,29 +296,35 @@ func (tm *TorrentManager) getId(f *torrent.File) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(id)))
 }
 
-func convert(t *torrent.Torrent) *TorrentInfo {
-	return &TorrentInfo{
-		Id:      t.InfoHash().String(),
-		Name:    t.Name(),
-		Time:    time.Now(),
-		File:    t.Files()[0],
-		Torrent: t,
+func convertTorrentList(torrentList []*torrent.Torrent) []*TorrentInfo {
+	torrents := make([]*TorrentInfo, 0, len(torrentList))
+	for _, t := range torrentList {
+		torrents = append(torrents, convertTorrent(t))
 	}
+
+	return torrents
 }
 
-func (tm *TorrentManager) AddTorrent(f *torrent.File) *TorrentInfo {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
+func convertTorrent(t *torrent.Torrent) *TorrentInfo {
+	files := t.Files()
 
-	id := tm.getId(f)
+	fileInfos := make([]*FileInfo, 0, len(files))
+	for _, f := range files {
+		fileInfo := &FileInfo{
+			Id:       generateFileID(f),
+			Name:     f.DisplayPath(),
+			Progress: calculateProgress(f),
+		}
 
-	info := TorrentInfo{
-		Id:   id,
-		Name: f.DisplayPath(),
-		Time: time.Now(),
-		File: f,
+		fileInfos = append(fileInfos, fileInfo)
 	}
 
-	tm.torrentInfo[id] = &info
-	return &info
+	torrentInfo := &TorrentInfo{
+		Id:    t.InfoHash().String(),
+		Name:  t.Name(),
+		Time:  time.Unix(0, t.Metainfo().CreationDate),
+		Files: fileInfos,
+	}
+
+	return torrentInfo
 }

@@ -6,19 +6,17 @@ import (
 )
 
 func (server *Server) list(w http.ResponseWriter, r *http.Request) {
-	var files []string
-
 	uri := r.URL.Query().Get("uri")
 	file, _, _ := r.FormFile("file")
 
 	if uri != "" {
-		files, err := server.torrentManager.AddMagnet(uri)
+		_, err := server.torrentManager.AddMagnet(uri)
 		if err != nil {
 			server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 			return
 		}
 
-		server.respond(w, Response{Files: files}, http.StatusOK)
+		server.respond(w, Response{Message: "File added"}, http.StatusOK)
 		return
 	} else if file != nil {
 		tempFile, err := ioutil.TempFile(server.config.DownloadPath, "upload-*.torrent")
@@ -39,13 +37,13 @@ func (server *Server) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		files, err = server.torrentManager.AddTorrentFromFile(tempFile, tempFile.Name())
+		_, err = server.torrentManager.AddTorrentFromFile(tempFile, tempFile.Name())
 		if err != nil {
 			server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 			return
 		}
 
-		server.respond(w, Response{Files: files}, http.StatusOK)
+		server.respond(w, Response{Message: "File added"}, http.StatusOK)
 		return
 	} else {
 		server.respond(w, Response{Message: "No URI or file provided"}, http.StatusBadRequest)

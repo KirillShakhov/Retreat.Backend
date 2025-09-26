@@ -66,7 +66,7 @@ func CreateServer(config *Config) *Server {
 
 	// Protected endpoints
 	http.HandleFunc("/api/play", server.cors(server.play))
-	http.HandleFunc("/api/download", server.cors(server.download))
+	//http.HandleFunc("/api/download", server.cors(server.download))
 	http.HandleFunc("/api/torrents", server.cors(server.torrents))
 	http.HandleFunc("/api/delete", server.cors(server.delete))
 
@@ -81,7 +81,6 @@ func CreateServer(config *Config) *Server {
 
 func (server *Server) respond(w http.ResponseWriter, res Response, code int) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
