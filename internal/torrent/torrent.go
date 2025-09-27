@@ -275,10 +275,10 @@ func (tm *TorrentManager) Close() {
 	}
 }
 
-func (tm *TorrentManager) AddMagnet(uri string) (bool, error) {
+func (tm *TorrentManager) AddMagnet(uri string) (*TorrentInfo, error) {
 	t, err := tm.client.AddMagnet(uri)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	<-t.GotInfo()
@@ -288,7 +288,11 @@ func (tm *TorrentManager) AddMagnet(uri string) (bool, error) {
 		t.Drop()
 	}
 
-	return isValid, err
+	if !isValid {
+		return nil, err
+	}
+
+	return convertTorrent(t), nil
 }
 
 func (tm *TorrentManager) getId(f *torrent.File) string {

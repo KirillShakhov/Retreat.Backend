@@ -23,6 +23,7 @@ type Server struct {
 	stopChan       chan os.Signal
 	config         *Config
 	userStore      *database.UserStore
+	torrentStore   *database.TorrentStore
 	torrentManager *torrent.TorrentManager
 	mongodb        *database.MongoDB
 }
@@ -47,7 +48,7 @@ func CreateServer(config *Config) *Server {
 
 	signal.Notify(server.stopChan, os.Interrupt, syscall.SIGTERM)
 
-	os.RemoveAll(config.DownloadPath)
+	//os.RemoveAll(config.DownloadPath) // TODO: удаление всего
 	err := os.MkdirAll(config.DownloadPath, os.ModePerm)
 	utils.Expect(err, "Failed to create downloads directory")
 
@@ -56,8 +57,8 @@ func CreateServer(config *Config) *Server {
 	server.mongodb = mongodb
 
 	// Initialize user store
-	us := database.NewUserStore(mongodb)
-	server.userStore = us
+	server.userStore = database.NewUserStore(mongodb)
+	server.torrentStore = database.NewTorrentStore(mongodb)
 
 	// Public auth endpoints
 	http.HandleFunc("/api/register", server.cors(server.register))

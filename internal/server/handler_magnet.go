@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"retreat-backend/internal/torrent"
 	"strings"
 )
 
@@ -13,25 +14,41 @@ func (server *Server) magnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var isValid bool
 	var err error
+	email, _ := r.Context().Value(userEmailKey).(string)
+
+	user, err := server.userStore.GetUserByEmail(email)
+	if err != nil {
+		server.respond(w, Response{Message: "unauthorized"}, http.StatusUnauthorized)
+		return
+	}
+
+	var torrentInfo *torrent.TorrentInfo
 	switch {
 	case strings.HasPrefix(uri, "magnet:"):
-		isValid, err = server.torrentManager.AddMagnet(uri)
+		torrentInfo, err = server.torrentManager.AddMagnet(uri)
 	default:
 		server.respond(w, Response{Message: "Unsupported URI format"}, http.StatusBadRequest)
 		return
 	}
+
 	if err != nil {
 		server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
 		return
 	}
 
+	if torrentInfo == nil {
+		server.respond(w, Response{Message: "Error adding torrent"}, http.StatusBadRequest)
+		return
+	}
+
 	log.Printf("Loading torrent info...")
 
-	if isValid {
-		server.respond(w, Response{Message: "Files added"}, http.StatusOK)
-	} else {
-		server.respond(w, Response{Message: "No valid files"}, http.StatusBadRequest)
+	err = server.torrentStore.CreateTorrent(user.ID, torrentInfo, uri, true)
+	if err != nil {
+		server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
+		return
 	}
+
+	server.respond(w, Response{Message: "Files added"}, http.StatusOK)
 }
