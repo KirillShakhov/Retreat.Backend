@@ -70,17 +70,28 @@ const userEmailKey ctxKey = "userEmail"
 
 func (server *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authz := r.Header.Get("Authorization")
-		if !strings.HasPrefix(strings.ToLower(authz), "bearer ") {
-			server.respond(w, Response{Message: "Unauthorized"}, http.StatusUnauthorized)
+		var token string
+
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+			token = strings.TrimSpace(authHeader[len("Bearer "):])
+		}
+
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
+		if token == "" {
+			server.respond(w, Response{Message: "Unauthorized: Token not found"}, http.StatusUnauthorized)
 			return
 		}
-		token := strings.TrimSpace(authz[len("Bearer "):])
+
 		email, err := server.parseJWT(token)
 		if err != nil {
-			server.respond(w, Response{Message: "Unauthorized"}, http.StatusUnauthorized)
+			server.respond(w, Response{Message: "Unauthorized: Invalid token"}, http.StatusUnauthorized)
 			return
 		}
+
 		ctx := context.WithValue(r.Context(), userEmailKey, email)
 		next(w, r.WithContext(ctx))
 	}
