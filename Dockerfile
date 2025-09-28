@@ -1,10 +1,10 @@
-FROM golang:1.22 AS build
+FROM golang:1.25 AS build
 
 WORKDIR /app
 COPY . .
 
 RUN go mod tidy
-RUN env CGO_ENABLED=0 go build -o retreat
+RUN env CGO_ENABLED=0 go build -o retreat .\cmd\api-server\main.go
 
 FROM alpine:3.20
 
