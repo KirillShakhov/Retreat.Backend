@@ -24,7 +24,13 @@ func (server *Server) torrents(w http.ResponseWriter, r *http.Request) {
 	var torrentInfos []*torrent.TorrentInfo
 	torrentInfos = make([]*torrent.TorrentInfo, 0, len(torrents))
 	for _, t := range torrents {
-		torrentInfos = append(torrentInfos, t.TorrentInfo)
+		ti, isHave := server.torrentManager.GetTorrent(t.Hash)
+		if !isHave {
+			torrentInfos = append(torrentInfos, t.TorrentInfo)
+			continue
+		}
+
+		torrentInfos = append(torrentInfos, ti)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
