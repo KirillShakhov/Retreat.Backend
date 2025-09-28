@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 
 RUN go mod tidy
-RUN env CGO_ENABLED=0 go build -o retreat .\cmd\api-server\main.go
+RUN env CGO_ENABLED=0 go build -o retreat cmd/api-server/main.go
 
 FROM alpine:3.20
 

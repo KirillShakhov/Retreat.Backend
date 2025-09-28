@@ -1,0 +1,9 @@
+﻿data
+downloads
+.gitignore
+.github
+.devcontainer
+.env
+docker-compose.yaml
+Dockerfile
+LICENSE
