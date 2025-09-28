@@ -106,6 +106,8 @@ func (tm *TorrentManager) processTorrentFiles(t *torrent.Torrent) (bool, error) 
 
 	anyValid := false
 	for _, f := range t.Files() {
+		f.SetPriority(torrent.PiecePriorityNone)
+
 		if !tm.isValidFile(f) {
 			continue
 		}
