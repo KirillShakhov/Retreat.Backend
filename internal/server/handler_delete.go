@@ -5,14 +5,23 @@ import (
 )
 
 func (server *Server) delete(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-
-	isSuccess, message := server.torrentManager.RemoveTorrent(id)
-
-	if !isSuccess {
-		server.respond(w, Response{Message: message}, http.StatusBadRequest)
+	email, _ := r.Context().Value(userEmailKey).(string)
+	user, err := server.userStore.GetUserByEmail(email)
+	if err != nil {
 		return
 	}
 
-	server.respond(w, Response{Message: message}, http.StatusOK)
+	id := r.URL.Query().Get("id")
+
+	err = server.torrentStore.DeleteTorrent(user.ID, id)
+
+	isHave := server.torrentStore.HaveTorrent(id)
+	if !isHave {
+		server.torrentManager.RemoveTorrent(id)
+	}
+
+	if err != nil {
+		server.respond(w, Response{Message: "torrent not found"}, http.StatusNotFound)
+		return
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Torrent struct {
@@ -60,6 +61,23 @@ func (ts *TorrentStore) CreateTorrent(ownerId primitive.ObjectID, torrentInfo *t
 	return err
 }
 
+func (ts *TorrentStore) DeleteTorrent(ownerId primitive.ObjectID, hash string) error {
+	collection := ts.mongodb.GetCollection("torrents")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := collection.DeleteOne(ctx, bson.M{"owner_id": ownerId, "hash": hash})
+	if err != nil {
+		return err
+	}
+
+	if result.DeletedCount == 0 {
+		return errors.New("torrent not found")
+	}
+
+	return nil
+}
+
 func (ts *TorrentStore) GetTorrents(ownerId primitive.ObjectID) ([]*Torrent, error) {
 	collection := ts.mongodb.GetCollection("torrents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -97,4 +115,13 @@ func (ts *TorrentStore) GetTorrent(ownerId primitive.ObjectID, hash string) (*To
 
 	return &t, nil
 
+}
+
+func (ts *TorrentStore) HaveTorrent(hash string) bool {
+	collection := ts.mongodb.GetCollection("torrents")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // Уменьшил таймаут
+	defer cancel()
+
+	count, err := collection.CountDocuments(ctx, bson.M{"hash": hash}, options.Count().SetLimit(1))
+	return err == nil && count > 0
 }

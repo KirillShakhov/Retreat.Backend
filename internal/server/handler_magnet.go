@@ -3,7 +3,6 @@ package server
 import (
 	"log"
 	"net/http"
-	"retreat-backend/internal/torrent"
 	"strings"
 )
 
@@ -23,14 +22,12 @@ func (server *Server) magnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var torrentInfo *torrent.TorrentInfo
-	switch {
-	case strings.HasPrefix(uri, "magnet:"):
-		torrentInfo, err = server.torrentManager.AddMagnet(uri)
-	default:
+	if !strings.HasPrefix(uri, "magnet:") {
 		server.respond(w, Response{Message: "Unsupported URI format"}, http.StatusBadRequest)
 		return
 	}
+
+	torrentInfo, err := server.torrentManager.AddMagnet(uri)
 
 	if err != nil {
 		server.respond(w, Response{Message: "Error adding torrent: " + err.Error()}, http.StatusBadRequest)
