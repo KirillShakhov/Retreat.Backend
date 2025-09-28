@@ -48,7 +48,7 @@ func CreateServer(config *Config) *Server {
 
 	signal.Notify(server.stopChan, os.Interrupt, syscall.SIGTERM)
 
-	//os.RemoveAll(config.DownloadPath) // TODO: удаление всего
+	os.RemoveAll(config.DownloadPath)
 	err := os.MkdirAll(config.DownloadPath, os.ModePerm)
 	utils.Expect(err, "Failed to create downloads directory")
 
@@ -66,15 +66,11 @@ func CreateServer(config *Config) *Server {
 	http.HandleFunc("/api/me", server.cors(server.auth(server.me)))
 
 	// Protected endpoints
-	http.HandleFunc("/api/play", server.cors(server.auth(server.play)))
 	http.HandleFunc("/api/torrents", server.cors(server.auth(server.torrents)))
 	http.HandleFunc("/api/delete", server.cors(server.auth(server.delete)))
-
-	// Keep stream public to allow external player access without token
 	http.HandleFunc("/api/stream", server.cors(server.auth(server.stream)))
 	http.HandleFunc("/api/magnet", server.cors(server.auth(server.magnet)))
 	http.HandleFunc("/api/file", server.cors(server.auth(server.file)))
-	http.HandleFunc("/api/list", server.cors(server.auth(server.list)))
 
 	return &server
 }

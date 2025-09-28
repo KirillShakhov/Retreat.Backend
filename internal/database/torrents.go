@@ -39,7 +39,7 @@ func (ts *TorrentStore) CreateTorrent(ownerId primitive.ObjectID, torrentInfo *t
 	defer cancel()
 
 	var existingTorrent Torrent
-	err := collection.FindOne(ctx, bson.M{"ownerId": ownerId, "hash": torrentInfo.Id}).Decode(&existingTorrent)
+	err := collection.FindOne(ctx, bson.M{"owner_id": ownerId, "hash": torrentInfo.Id}).Decode(&existingTorrent)
 	if err == nil {
 		return errors.New("torrent already exists")
 	}
@@ -47,7 +47,7 @@ func (ts *TorrentStore) CreateTorrent(ownerId primitive.ObjectID, torrentInfo *t
 		return err
 	}
 
-	torrent := Torrent{
+	t := Torrent{
 		OwnerId:     ownerId,
 		Hash:        torrentInfo.Id,
 		TorrentFile: torrentFile,
@@ -56,7 +56,7 @@ func (ts *TorrentStore) CreateTorrent(ownerId primitive.ObjectID, torrentInfo *t
 		TorrentInfo: torrentInfo,
 	}
 
-	_, err = collection.InsertOne(ctx, torrent)
+	_, err = collection.InsertOne(ctx, t)
 	return err
 }
 
@@ -79,4 +79,22 @@ func (ts *TorrentStore) GetTorrents(ownerId primitive.ObjectID) ([]*Torrent, err
 	}
 
 	return torrents, nil
+}
+
+func (ts *TorrentStore) GetTorrent(ownerId primitive.ObjectID, hash string) (*Torrent, error) {
+	collection := ts.mongodb.GetCollection("torrents")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var t Torrent
+	err := collection.FindOne(ctx, bson.M{"owner_id": ownerId, "hash": hash}).Decode(&t)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("torrent not found")
+		}
+		return nil, err
+	}
+
+	return &t, nil
+
 }

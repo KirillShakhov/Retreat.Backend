@@ -155,6 +155,10 @@ func (tm *TorrentManager) GetTorrent(id string) (*TorrentInfo, bool) {
 	}
 
 	t, ok := tm.client.Torrent(hash)
+	if !ok {
+		return nil, false
+	}
+
 	return convertTorrent(t), ok
 }
 
@@ -185,7 +189,7 @@ func (tm *TorrentManager) Stream(w http.ResponseWriter, r *http.Request, id stri
 
 			http.ServeContent(w, r, fn, time.Now(), reader)
 
-			return "fie found", true
+			return "file found", true
 		}
 	}
 
