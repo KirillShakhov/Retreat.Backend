@@ -1,5 +1,5 @@
 services:
-  retreat-backend:
+  backend:
     build:
       context: .
     image: kirillshakhov/retreat-backend:1.0
@@ -10,9 +10,7 @@ services:
     ports:
       - '8000:8000'
     networks:
-      net:
-        aliases:
-          - retreat-backend
+      - net
   frontend:
     image: kirillshakhov/retreat-backend:1.0
     pull_policy: always

@@ -25,7 +25,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	config := Config{
 		Port:          8000,
-		Filetypes:     []string{".mkv", ".mp4"},
+		Filetypes:     []string{".mkv", ".mp4", ".avi"},
 		Playback:      []string{"mpv", "--no-terminal", "--force-window", "--ytdl-format=best"},
 		DownloadPath:  filepath.Join("downloads"),
 		JWTSecret:     "SecretKey",

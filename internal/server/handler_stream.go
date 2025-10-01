@@ -4,6 +4,10 @@ import (
 	"net/http"
 )
 
+type StreamResponse struct {
+	Message string `json:"message,omitempty"`
+}
+
 func (server *Server) stream(w http.ResponseWriter, r *http.Request) {
 	email, _ := r.Context().Value(userEmailKey).(string)
 	user, err := server.userStore.GetUserByEmail(email)
@@ -16,7 +20,7 @@ func (server *Server) stream(w http.ResponseWriter, r *http.Request) {
 
 	torrent, err := server.torrentStore.GetTorrent(user.ID, id)
 	if err != nil {
-		server.respond(w, Response{Message: "torrent not found"}, http.StatusNotFound)
+		server.respond(w, StreamResponse{Message: "torrent not found"}, http.StatusNotFound)
 		return
 	}
 
@@ -25,18 +29,18 @@ func (server *Server) stream(w http.ResponseWriter, r *http.Request) {
 		if torrent.IsMagnet {
 			_, err := server.torrentManager.AddMagnet(torrent.TorrentFile)
 			if err != nil {
-				server.respond(w, Response{Message: "torrent not found"}, http.StatusNotFound)
+				server.respond(w, StreamResponse{Message: "torrent not found"}, http.StatusNotFound)
 				return
 			}
 		} else {
-			server.respond(w, Response{Message: "torrent not found"}, http.StatusNotFound)
+			server.respond(w, StreamResponse{Message: "torrent not found"}, http.StatusNotFound)
 			return
 		}
 	}
 
 	info, ok := server.torrentManager.Stream(w, r, id, fileId)
 	if !ok {
-		server.respond(w, Response{Message: info}, http.StatusNotFound)
+		server.respond(w, StreamResponse{Message: info}, http.StatusNotFound)
 		return
 	}
 }

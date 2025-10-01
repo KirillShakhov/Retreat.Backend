@@ -4,6 +4,10 @@ import (
 	"net/http"
 )
 
+type DeleteResponse struct {
+	Message string `json:"message,omitempty"`
+}
+
 func (server *Server) delete(w http.ResponseWriter, r *http.Request) {
 	email, _ := r.Context().Value(userEmailKey).(string)
 	user, err := server.userStore.GetUserByEmail(email)
@@ -21,7 +25,7 @@ func (server *Server) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		server.respond(w, Response{Message: "torrent not found"}, http.StatusNotFound)
+		server.respond(w, DeleteResponse{Message: "torrent not found"}, http.StatusNotFound)
 		return
 	}
 }

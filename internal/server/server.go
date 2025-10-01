@@ -28,14 +28,6 @@ type Server struct {
 	mongodb        *database.MongoDB
 }
 
-type Response struct {
-	Message  string   `json:"message,omitempty"`
-	Ids      []string `json:"ids,omitempty"`
-	Torrents []string `json:"torrents,omitempty"`
-	Files    []string `json:"files,omitempty"`
-	Token    string   `json:"token,omitempty"`
-}
-
 func CreateServer(config *Config) *Server {
 	port := config.Port
 
@@ -75,13 +67,13 @@ func CreateServer(config *Config) *Server {
 	return &server
 }
 
-func (server *Server) respond(w http.ResponseWriter, res Response, code int) {
+func (server *Server) respond(w http.ResponseWriter, res any, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	log.Printf("%s: %s", http.StatusText(code), res.Message)
+	log.Printf("%s: %s", http.StatusText(code), res)
 }
 
 func (server *Server) start() (int, error) {

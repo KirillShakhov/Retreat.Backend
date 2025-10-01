@@ -12,6 +12,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type AuthResponse struct {
+	Message string `json:"message,omitempty"`
+	Token   string `json:"token,omitempty"`
+}
+
 // JWT utilities
 func (server *Server) generateJWT(email string) (string, error) {
 	ttl := time.Duration(server.config.TokenTTLHours) * time.Hour
@@ -82,13 +87,13 @@ func (server *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if token == "" {
-			server.respond(w, Response{Message: "Unauthorized: Token not found"}, http.StatusUnauthorized)
+			server.respond(w, AuthResponse{Message: "Unauthorized: Token not found"}, http.StatusUnauthorized)
 			return
 		}
 
 		email, err := server.parseJWT(token)
 		if err != nil {
-			server.respond(w, Response{Message: "Unauthorized: Invalid token"}, http.StatusUnauthorized)
+			server.respond(w, AuthResponse{Message: "Unauthorized: Invalid token"}, http.StatusUnauthorized)
 			return
 		}
 
@@ -107,52 +112,52 @@ var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
 func (server *Server) register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		server.respond(w, Response{Message: "Method not allowed"}, http.StatusMethodNotAllowed)
+		server.respond(w, AuthResponse{Message: "Method not allowed"}, http.StatusMethodNotAllowed)
 		return
 	}
 	var c credentials
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		server.respond(w, Response{Message: "Invalid JSON"}, http.StatusBadRequest)
+		server.respond(w, AuthResponse{Message: "Invalid JSON"}, http.StatusBadRequest)
 		return
 	}
 	c.Email = strings.TrimSpace(c.Email)
 	if !emailRegex.MatchString(c.Email) || len(c.Password) < 6 {
-		server.respond(w, Response{Message: "Invalid email or password too short"}, http.StatusBadRequest)
+		server.respond(w, AuthResponse{Message: "Invalid email or password too short"}, http.StatusBadRequest)
 		return
 	}
 	if err := server.userStore.CreateUser(c.Email, c.Password); err != nil {
-		server.respond(w, Response{Message: err.Error()}, http.StatusBadRequest)
+		server.respond(w, AuthResponse{Message: err.Error()}, http.StatusBadRequest)
 		return
 	}
-	server.respond(w, Response{Message: "Registered"}, http.StatusCreated)
+	server.respond(w, AuthResponse{Message: "Registered"}, http.StatusCreated)
 }
 
 func (server *Server) login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		server.respond(w, Response{Message: "Method not allowed"}, http.StatusMethodNotAllowed)
+		server.respond(w, AuthResponse{Message: "Method not allowed"}, http.StatusMethodNotAllowed)
 		return
 	}
 	var c credentials
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		server.respond(w, Response{Message: "Invalid JSON"}, http.StatusBadRequest)
+		server.respond(w, AuthResponse{Message: "Invalid JSON"}, http.StatusBadRequest)
 		return
 	}
 	if err := server.userStore.VerifyUser(c.Email, c.Password); err != nil {
-		server.respond(w, Response{Message: "Invalid credentials"}, http.StatusUnauthorized)
+		server.respond(w, AuthResponse{Message: "Invalid credentials"}, http.StatusUnauthorized)
 		return
 	}
 	tok, err := server.generateJWT(c.Email)
 	if err != nil {
-		server.respond(w, Response{Message: "Failed to issue token"}, http.StatusInternalServerError)
+		server.respond(w, AuthResponse{Message: "Failed to issue token"}, http.StatusInternalServerError)
 		return
 	}
-	server.respond(w, Response{Message: "Logged in", Token: tok}, http.StatusOK)
+	server.respond(w, AuthResponse{Message: "Logged in", Token: tok}, http.StatusOK)
 }
 
 func (server *Server) me(w http.ResponseWriter, r *http.Request) {
 	email, _ := r.Context().Value(userEmailKey).(string)
 	if email == "" {
-		server.respond(w, Response{Message: "Unauthorized"}, http.StatusUnauthorized)
+		server.respond(w, AuthResponse{Message: "Unauthorized"}, http.StatusUnauthorized)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
